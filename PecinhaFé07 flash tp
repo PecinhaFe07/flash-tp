@@ -1,0 +1,1068 @@
+-- PecinhaFé flash tp + helper by @Pecinhafé07 
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local Stats = game:GetService("Stats")
+local ProximityPromptService = game:GetService("ProximityPromptService")
+local HttpService = game:GetService("HttpService")
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+local cursedResetRemote = nil
+local CURSED_RESET_GUID = "f888ee6e-c86d-46e1-93d7-0639d6635d42"
+
+pcall(function()
+    if hookfunction and newcclosure then
+        local oldFire
+        oldFire = hookfunction(Instance.new("RemoteEvent").FireServer, newcclosure(function(self, ...)
+            if not cursedResetRemote and typeof(self) == "Instance" and self:IsA("RemoteEvent") and self.Name:sub(1,3) == "RE/" then 
+                cursedResetRemote = self 
+            end
+            return oldFire(self, ...)
+        end))
+    end
+end)
+
+task.spawn(function()
+    task.wait(2)
+    if cursedResetRemote then return end
+    for _, desc in ipairs(game:GetDescendants()) do
+        if desc:IsA("RemoteEvent") and desc.Name:sub(1,3) == "RE/" then 
+            cursedResetRemote = desc
+            break 
+        end
+    end
+end)
+
+local function cursedInstaReset()
+    if not cursedResetRemote then
+        for _, desc in ipairs(game:GetDescendants()) do
+            if desc:IsA("RemoteEvent") and desc.Name:sub(1,3) == "RE/" then 
+                cursedResetRemote = desc
+                break 
+            end
+        end
+    end
+    if not cursedResetRemote then 
+        local character = LocalPlayer.Character
+        if character then
+            local humanoid = character:FindFirstChildOfClass("Humanoid")
+            if humanoid then
+                humanoid.Health = 0
+            end
+        end
+        return 
+    end
+    
+    local character = LocalPlayer.Character
+    local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+    
+    if humanoid and humanoid.Health <= 0 then 
+        pcall(function() 
+            cursedResetRemote:FireServer(CURSED_RESET_GUID, LocalPlayer, "balloon") 
+        end)
+        return 
+    end
+    
+    local resetDetected = false
+    local conns = {}
+    
+    if humanoid then
+        table.insert(conns, humanoid.Died:Connect(function() 
+            resetDetected = true 
+        end))
+        table.insert(conns, humanoid:GetPropertyChangedSignal("Health"):Connect(function() 
+            if humanoid.Health <= 0 then 
+                resetDetected = true 
+            end 
+        end))
+    end
+    
+    if character then 
+        table.insert(conns, character.AncestryChanged:Connect(function(_, parent) 
+            if not parent then 
+                resetDetected = true 
+            end 
+        end)) 
+    end
+    
+    task.spawn(function()
+        for _ = 1, 50 do
+            if resetDetected then break end
+            pcall(function() 
+                cursedResetRemote:FireServer(CURSED_RESET_GUID, LocalPlayer, "balloon") 
+            end)
+            task.wait()
+        end
+        for _, conn in ipairs(conns) do 
+            pcall(function() 
+                conn:Disconnect() 
+            end) 
+        end
+    end)
+end
+
+local function makeBorderGradient()
+    return ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 0, 0)),
+        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(40, 80, 180)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 0, 0)),
+    })
+end
+
+local function animateGradient(gradient, baseRotation, speed)
+    speed = speed or 45
+    task.spawn(function()
+        local t = 0
+        while gradient and gradient.Parent do
+            t = t + RunService.Heartbeat:Wait()
+            gradient.Rotation = baseRotation + math.sin(t * (speed / 50)) * 30
+        end
+    end)
+end
+
+local function makeTitleGradient()
+    return ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(60, 100, 200)),
+        ColorSequenceKeypoint.new(0.35, Color3.fromRGB(60, 100, 200)),
+        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(200, 220, 255)),
+        ColorSequenceKeypoint.new(0.65, Color3.fromRGB(60, 100, 200)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(60, 100, 200)),
+    })
+end
+
+local function animateTitleGradient(gradient)
+    task.spawn(function()
+        local t = 0
+        while gradient and gradient.Parent do
+            t = t + RunService.Heartbeat:Wait()
+            gradient.Offset = Vector2.new(math.sin(t * 0.6) * 0.5, 0)
+        end
+    end)
+end
+
+local function animateButtonPress(button)
+    local originalColor = button.BackgroundColor3
+    button.BackgroundColor3 = Color3.fromRGB(40, 60, 100)
+    task.delay(0.12, function()
+        if button and button.Parent then
+            button.BackgroundColor3 = originalColor
+        end
+    end)
+end
+
+local function animateToggle(knob, toggleFrame, state)
+    local onPos = UDim2.new(1, -14, 0.5, -6)
+    local offPos = UDim2.new(0, 2, 0.5, -6)
+    local onColor = Color3.fromRGB(100, 150, 255)
+    local offColor = Color3.fromRGB(60, 80, 140)
+    local target = state and onPos or offPos
+    TweenService:Create(knob, TweenInfo.new(0.18, Enum.EasingStyle.Quad), {
+        Position = target,
+        BackgroundColor3 = state and onColor or offColor,
+    }):Play()
+end
+
+local function makeDraggable(frame, dragHandle)
+    dragHandle = dragHandle or frame
+    local dragging, dragStart, startPos
+    dragHandle.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = frame.Position
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            local delta = input.Position - dragStart
+            frame.Position = UDim2.new(
+                startPos.X.Scale, startPos.X.Offset + delta.X,
+                startPos.Y.Scale, startPos.Y.Offset + delta.Y
+            )
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end)
+end
+
+local function makeMinimizable(frame, minBtn, fullHeight, headerHeight)
+    headerHeight = headerHeight or 32
+    local minimized = false
+    minBtn.MouseButton1Click:Connect(function()
+        animateButtonPress(minBtn)
+        minimized = not minimized
+        minBtn.Text = minimized and "+" or "-"
+        TweenService:Create(frame, TweenInfo.new(0.22, Enum.EasingStyle.Quad), {
+            Size = UDim2.new(frame.Size.X.Scale, frame.Size.X.Offset, 0, minimized and headerHeight or fullHeight)
+        }):Play()
+    end)
+end
+
+local hubGui = Instance.new("ScreenGui")
+hubGui.Name = "PecinhaFéHub"
+hubGui.ResetOnSpawn = false
+hubGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+hubGui.Parent = PlayerGui
+
+local hubFrame = Instance.new("Frame")
+hubFrame.Position = UDim2.new(0.5, -100, 0.3, 0)
+hubFrame.Size = UDim2.new(0, 200, 0, 250)
+hubFrame.BackgroundColor3 = Color3.fromRGB(10, 15, 30)
+hubFrame.BackgroundTransparency = 0.3
+hubFrame.BorderSizePixel = 0
+hubFrame.ClipsDescendants = true
+hubFrame.Name = "Frame"
+hubFrame.Parent = hubGui
+
+local hubCorner = Instance.new("UICorner")
+hubCorner.CornerRadius = UDim.new(0, 10)
+hubCorner.Parent = hubFrame
+
+local hubStroke = Instance.new("UIStroke")
+hubStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+hubStroke.Color = Color3.fromRGB(40, 80, 180)
+hubStroke.Thickness = 2
+hubStroke.Parent = hubFrame
+
+local hubStrokeGrad = Instance.new("UIGradient")
+hubStrokeGrad.Color = makeBorderGradient()
+hubStrokeGrad.Rotation = 203.25
+hubStrokeGrad.Parent = hubStroke
+animateGradient(hubStrokeGrad, 203.25)
+
+local hubTitle = Instance.new("TextLabel")
+hubTitle.Text = "PecinhaFé Hub"
+hubTitle.TextColor3 = Color3.fromRGB(100, 150, 255)
+hubTitle.TextSize = 12
+hubTitle.FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Heavy, Enum.FontStyle.Normal)
+hubTitle.TextXAlignment = Enum.TextXAlignment.Center
+hubTitle.Position = UDim2.new(0, 8, 0, 4)
+hubTitle.Size = UDim2.new(1, -40, 0, 14)
+hubTitle.BackgroundTransparency = 1
+hubTitle.Parent = hubFrame
+
+local hubTitleGrad = Instance.new("UIGradient")
+hubTitleGrad.Color = makeTitleGradient()
+hubTitleGrad.Offset = Vector2.new(0.996, 0)
+hubTitleGrad.Parent = hubTitle
+animateTitleGradient(hubTitleGrad)
+
+local hubSub = Instance.new("TextLabel")
+hubSub.Text = "Flash TP + Speed"
+hubSub.TextColor3 = Color3.fromRGB(150, 180, 255)
+hubSub.TextTransparency = 0.4
+hubSub.TextSize = 9
+hubSub.FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Medium, Enum.FontStyle.Normal)
+hubSub.TextXAlignment = Enum.TextXAlignment.Center
+hubSub.Position = UDim2.new(0, 8, 0, 20)
+hubSub.Size = UDim2.new(1, -40, 0, 10)
+hubSub.BackgroundTransparency = 1
+hubSub.Parent = hubFrame
+
+local hubMinBtn = Instance.new("TextButton")
+hubMinBtn.Text = "-"
+hubMinBtn.TextColor3 = Color3.fromRGB(100, 150, 255)
+hubMinBtn.TextSize = 14
+hubMinBtn.FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Heavy, Enum.FontStyle.Normal)
+hubMinBtn.Position = UDim2.new(1, -24, 0, 4)
+hubMinBtn.Size = UDim2.new(0, 20, 0, 20)
+hubMinBtn.BackgroundColor3 = Color3.fromRGB(20, 30, 50)
+hubMinBtn.BorderSizePixel = 0
+hubMinBtn.Parent = hubFrame
+
+local hubMinCorner = Instance.new("UICorner")
+hubMinCorner.CornerRadius = UDim.new(0, 5)
+hubMinCorner.Parent = hubMinBtn
+
+local hubMinStroke = Instance.new("UIStroke")
+hubMinStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+hubMinStroke.Color = Color3.fromRGB(40, 80, 180)
+hubMinStroke.Thickness = 1.5
+hubMinStroke.Parent = hubMinBtn
+
+local hubMinStrokeGrad = Instance.new("UIGradient")
+hubMinStrokeGrad.Color = makeBorderGradient()
+hubMinStrokeGrad.Rotation = 203.25
+hubMinStrokeGrad.Parent = hubMinStroke
+animateGradient(hubMinStrokeGrad, 203.25)
+
+local hubFlashRow = Instance.new("Frame")
+hubFlashRow.Position = UDim2.new(0, 6, 0, 34)
+hubFlashRow.Size = UDim2.new(1, -12, 0, 26)
+hubFlashRow.BackgroundColor3 = Color3.fromRGB(20, 30, 50)
+hubFlashRow.BorderSizePixel = 0
+hubFlashRow.Parent = hubFrame
+
+Instance.new("UICorner").Parent = hubFlashRow
+
+local hubFlashStroke = Instance.new("UIStroke")
+hubFlashStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+hubFlashStroke.Color = Color3.fromRGB(40, 80, 180)
+hubFlashStroke.Thickness = 1.2
+hubFlashStroke.Parent = hubFlashRow
+
+local hubFlashStrokeGrad = Instance.new("UIGradient")
+hubFlashStrokeGrad.Color = makeBorderGradient()
+hubFlashStrokeGrad.Rotation = 203.25
+hubFlashStrokeGrad.Parent = hubFlashStroke
+animateGradient(hubFlashStrokeGrad, 203.25)
+
+local hubFlashLabel = Instance.new("TextLabel")
+hubFlashLabel.Text = "Flash TP: OFF"
+hubFlashLabel.TextColor3 = Color3.fromRGB(150, 180, 255)
+hubFlashLabel.TextSize = 10
+hubFlashLabel.FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Heavy, Enum.FontStyle.Normal)
+hubFlashLabel.TextXAlignment = Enum.TextXAlignment.Left
+hubFlashLabel.Position = UDim2.new(0, 6, 0, 0)
+hubFlashLabel.Size = UDim2.new(1, -50, 1, 0)
+hubFlashLabel.BackgroundTransparency = 1
+hubFlashLabel.Parent = hubFlashRow
+
+local hubFlashToggleFrame = Instance.new("Frame")
+hubFlashToggleFrame.Position = UDim2.new(1, -36, 0.5, -8)
+hubFlashToggleFrame.Size = UDim2.new(0, 30, 0, 16)
+hubFlashToggleFrame.BackgroundTransparency = 1
+hubFlashToggleFrame.Parent = hubFlashRow
+
+Instance.new("UICorner").Parent = hubFlashToggleFrame
+
+local hubFlashToggleStroke = Instance.new("UIStroke")
+hubFlashToggleStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+hubFlashToggleStroke.Color = Color3.fromRGB(40, 80, 180)
+hubFlashToggleStroke.Thickness = 1.5
+hubFlashToggleStroke.Parent = hubFlashToggleFrame
+
+local hubFlashToggleStrokeGrad = Instance.new("UIGradient")
+hubFlashToggleStrokeGrad.Color = makeBorderGradient()
+hubFlashToggleStrokeGrad.Rotation = 203.25
+hubFlashToggleStrokeGrad.Parent = hubFlashToggleStroke
+animateGradient(hubFlashToggleStrokeGrad, 203.25)
+
+local hubFlashKnob = Instance.new("Frame")
+hubFlashKnob.Position = UDim2.new(0, 2, 0.5, -6)
+hubFlashKnob.Size = UDim2.new(0, 12, 0, 12)
+hubFlashKnob.BackgroundColor3 = Color3.fromRGB(60, 80, 140)
+hubFlashKnob.Parent = hubFlashToggleFrame
+
+local hubFlashKnobCorner = Instance.new("UICorner")
+hubFlashKnobCorner.CornerRadius = UDim.new(0, 6)
+hubFlashKnobCorner.Parent = hubFlashKnob
+
+local hubFlashBtn = Instance.new("TextButton")
+hubFlashBtn.Text = ""
+hubFlashBtn.Size = UDim2.new(1, 0, 1, 0)
+hubFlashBtn.BackgroundTransparency = 1
+hubFlashBtn.Parent = hubFlashRow
+
+local hubTriggerRow = Instance.new("Frame")
+hubTriggerRow.Position = UDim2.new(0, 6, 0, 66)
+hubTriggerRow.Size = UDim2.new(1, -12, 0, 34)
+hubTriggerRow.BackgroundColor3 = Color3.fromRGB(20, 30, 50)
+hubTriggerRow.BorderSizePixel = 0
+hubTriggerRow.Parent = hubFrame
+
+Instance.new("UICorner").Parent = hubTriggerRow
+
+local hubTriggerStroke = Instance.new("UIStroke")
+hubTriggerStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+hubTriggerStroke.Color = Color3.fromRGB(40, 80, 180)
+hubTriggerStroke.Thickness = 1.2
+hubTriggerStroke.Parent = hubTriggerRow
+
+local hubTriggerStrokeGrad = Instance.new("UIGradient")
+hubTriggerStrokeGrad.Color = makeBorderGradient()
+hubTriggerStrokeGrad.Rotation = 203.25
+hubTriggerStrokeGrad.Parent = hubTriggerStroke
+animateGradient(hubTriggerStrokeGrad, 203.25)
+
+local hubTriggerLabel = Instance.new("TextLabel")
+hubTriggerLabel.Text = "Trigger %"
+hubTriggerLabel.TextColor3 = Color3.fromRGB(150, 180, 255)
+hubTriggerLabel.TextSize = 10
+hubTriggerLabel.FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Heavy, Enum.FontStyle.Normal)
+hubTriggerLabel.TextXAlignment = Enum.TextXAlignment.Left
+hubTriggerLabel.Position = UDim2.new(0, 6, 0, 2)
+hubTriggerLabel.Size = UDim2.new(0, 55, 0, 14)
+hubTriggerLabel.BackgroundTransparency = 1
+hubTriggerLabel.Parent = hubTriggerRow
+
+local hubTriggerPct = Instance.new("TextLabel")
+hubTriggerPct.Text = "93%"
+hubTriggerPct.TextColor3 = Color3.fromRGB(100, 150, 255)
+hubTriggerPct.TextSize = 10
+hubTriggerPct.FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Heavy, Enum.FontStyle.Normal)
+hubTriggerPct.TextXAlignment = Enum.TextXAlignment.Right
+hubTriggerPct.Position = UDim2.new(1, -38, 0, 2)
+hubTriggerPct.Size = UDim2.new(0, 34, 0, 14)
+hubTriggerPct.BackgroundTransparency = 1
+hubTriggerPct.Parent = hubTriggerRow
+
+local hubSliderTrack = Instance.new("Frame")
+hubSliderTrack.Position = UDim2.new(0, 6, 0, 22)
+hubSliderTrack.Size = UDim2.new(1, -12, 0, 8)
+hubSliderTrack.BackgroundColor3 = Color3.fromRGB(40, 50, 70)
+hubSliderTrack.BorderSizePixel = 0
+hubSliderTrack.Parent = hubTriggerRow
+
+local hubSliderTrackCorner = Instance.new("UICorner")
+hubSliderTrackCorner.CornerRadius = UDim.new(0, 4)
+hubSliderTrackCorner.Parent = hubSliderTrack
+
+local hubSliderFill = Instance.new("Frame")
+hubSliderFill.Size = UDim2.new(0.93, 0, 1, 0)
+hubSliderFill.BackgroundColor3 = Color3.fromRGB(100, 150, 255)
+hubSliderFill.BorderSizePixel = 0
+hubSliderFill.Parent = hubSliderTrack
+
+local hubSliderFillCorner = Instance.new("UICorner")
+hubSliderFillCorner.CornerRadius = UDim.new(0, 4)
+hubSliderFillCorner.Parent = hubSliderFill
+
+local hubSliderHandle = Instance.new("Frame")
+hubSliderHandle.Position = UDim2.new(0.93, 0, 0.5, 0)
+hubSliderHandle.Size = UDim2.new(0, 12, 0, 12)
+hubSliderHandle.AnchorPoint = Vector2.new(0.5, 0.5)
+hubSliderHandle.BackgroundColor3 = Color3.fromRGB(20, 50, 160)
+hubSliderHandle.BorderSizePixel = 0
+hubSliderHandle.Parent = hubSliderTrack
+
+local hubSliderHandleCorner = Instance.new("UICorner")
+hubSliderHandleCorner.CornerRadius = UDim.new(1, 0)
+hubSliderHandleCorner.Parent = hubSliderHandle
+
+local hubSpeedRow = Instance.new("Frame")
+hubSpeedRow.Position = UDim2.new(0, 6, 0, 106)
+hubSpeedRow.Size = UDim2.new(1, -12, 0, 26)
+hubSpeedRow.BackgroundColor3 = Color3.fromRGB(20, 30, 50)
+hubSpeedRow.BorderSizePixel = 0
+hubSpeedRow.Parent = hubFrame
+
+Instance.new("UICorner").Parent = hubSpeedRow
+
+local hubSpeedStroke = Instance.new("UIStroke")
+hubSpeedStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+hubSpeedStroke.Color = Color3.fromRGB(40, 80, 180)
+hubSpeedStroke.Thickness = 1.2
+hubSpeedStroke.Parent = hubSpeedRow
+
+local hubSpeedStrokeGrad = Instance.new("UIGradient")
+hubSpeedStrokeGrad.Color = makeBorderGradient()
+hubSpeedStrokeGrad.Rotation = 203.25
+hubSpeedStrokeGrad.Parent = hubSpeedStroke
+animateGradient(hubSpeedStrokeGrad, 203.25)
+
+local hubSpeedLabel = Instance.new("TextLabel")
+hubSpeedLabel.Text = "Speed Boost: OFF"
+hubSpeedLabel.TextColor3 = Color3.fromRGB(150, 180, 255)
+hubSpeedLabel.TextSize = 10
+hubSpeedLabel.FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Heavy, Enum.FontStyle.Normal)
+hubSpeedLabel.TextXAlignment = Enum.TextXAlignment.Left
+hubSpeedLabel.Position = UDim2.new(0, 6, 0, 0)
+hubSpeedLabel.Size = UDim2.new(1, -50, 1, 0)
+hubSpeedLabel.BackgroundTransparency = 1
+hubSpeedLabel.Parent = hubSpeedRow
+
+local hubSpeedToggleFrame = Instance.new("Frame")
+hubSpeedToggleFrame.Position = UDim2.new(1, -36, 0.5, -8)
+hubSpeedToggleFrame.Size = UDim2.new(0, 30, 0, 16)
+hubSpeedToggleFrame.BackgroundTransparency = 1
+hubSpeedToggleFrame.Parent = hubSpeedRow
+
+Instance.new("UICorner").Parent = hubSpeedToggleFrame
+
+local hubSpeedToggleStroke = Instance.new("UIStroke")
+hubSpeedToggleStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+hubSpeedToggleStroke.Color = Color3.fromRGB(40, 80, 180)
+hubSpeedToggleStroke.Thickness = 1.5
+hubSpeedToggleStroke.Parent = hubSpeedToggleFrame
+
+local hubSpeedToggleStrokeGrad = Instance.new("UIGradient")
+hubSpeedToggleStrokeGrad.Color = makeBorderGradient()
+hubSpeedToggleStrokeGrad.Rotation = 203.25
+hubSpeedToggleStrokeGrad.Parent = hubSpeedToggleStroke
+animateGradient(hubSpeedToggleStrokeGrad, 203.25)
+
+local hubSpeedKnob = Instance.new("Frame")
+hubSpeedKnob.Position = UDim2.new(0, 2, 0.5, -6)
+hubSpeedKnob.Size = UDim2.new(0, 12, 0, 12)
+hubSpeedKnob.BackgroundColor3 = Color3.fromRGB(60, 80, 140)
+hubSpeedKnob.Parent = hubSpeedToggleFrame
+
+local hubSpeedKnobCorner = Instance.new("UICorner")
+hubSpeedKnobCorner.CornerRadius = UDim.new(0, 6)
+hubSpeedKnobCorner.Parent = hubSpeedKnob
+
+local hubSpeedBtn = Instance.new("TextButton")
+hubSpeedBtn.Text = ""
+hubSpeedBtn.Size = UDim2.new(1, 0, 1, 0)
+hubSpeedBtn.BackgroundTransparency = 1
+hubSpeedBtn.Parent = hubSpeedRow
+
+local hubSpeedInputRow = Instance.new("Frame")
+hubSpeedInputRow.Position = UDim2.new(0, 6, 0, 138)
+hubSpeedInputRow.Size = UDim2.new(1, -12, 0, 34)
+hubSpeedInputRow.BackgroundColor3 = Color3.fromRGB(20, 30, 50)
+hubSpeedInputRow.BorderSizePixel = 0
+hubSpeedInputRow.Parent = hubFrame
+
+Instance.new("UICorner").Parent = hubSpeedInputRow
+
+local hubSpeedInputStroke = Instance.new("UIStroke")
+hubSpeedInputStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+hubSpeedInputStroke.Color = Color3.fromRGB(40, 80, 180)
+hubSpeedInputStroke.Thickness = 1.2
+hubSpeedInputStroke.Parent = hubSpeedInputRow
+
+local hubSpeedInputStrokeGrad = Instance.new("UIGradient")
+hubSpeedInputStrokeGrad.Color = makeBorderGradient()
+hubSpeedInputStrokeGrad.Rotation = 203.25
+hubSpeedInputStrokeGrad.Parent = hubSpeedInputStroke
+animateGradient(hubSpeedInputStrokeGrad, 203.25)
+
+local hubSpeedValueLabel = Instance.new("TextLabel")
+hubSpeedValueLabel.Text = "Speed:"
+hubSpeedValueLabel.TextColor3 = Color3.fromRGB(150, 180, 255)
+hubSpeedValueLabel.TextSize = 9
+hubSpeedValueLabel.FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Medium, Enum.FontStyle.Normal)
+hubSpeedValueLabel.TextXAlignment = Enum.TextXAlignment.Left
+hubSpeedValueLabel.Position = UDim2.new(0, 6, 0, 10)
+hubSpeedValueLabel.Size = UDim2.new(0, 42, 0, 14)
+hubSpeedValueLabel.BackgroundTransparency = 1
+hubSpeedValueLabel.Parent = hubSpeedInputRow
+
+local hubSpeedBox = Instance.new("TextBox")
+hubSpeedBox.Text = "27"
+hubSpeedBox.TextColor3 = Color3.fromRGB(100, 150, 255)
+hubSpeedBox.TextSize = 10
+hubSpeedBox.FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal)
+hubSpeedBox.Position = UDim2.new(0, 50, 0, 8)
+hubSpeedBox.Size = UDim2.new(0, 50, 0, 20)
+hubSpeedBox.BackgroundColor3 = Color3.fromRGB(15, 20, 40)
+hubSpeedBox.BorderSizePixel = 0
+hubSpeedBox.Parent = hubSpeedInputRow
+
+local hubSpeedBoxCorner = Instance.new("UICorner")
+hubSpeedBoxCorner.CornerRadius = UDim.new(0, 4)
+hubSpeedBoxCorner.Parent = hubSpeedBox
+
+local hubSpeedBoxStroke = Instance.new("UIStroke")
+hubSpeedBoxStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+hubSpeedBoxStroke.Color = Color3.fromRGB(40, 80, 180)
+hubSpeedBoxStroke.Parent = hubSpeedBox
+
+local hubSpeedBoxGrad = Instance.new("UIGradient")
+hubSpeedBoxGrad.Color = makeBorderGradient()
+hubSpeedBoxGrad.Rotation = 203.25
+hubSpeedBoxGrad.Parent = hubSpeedBoxStroke
+animateGradient(hubSpeedBoxGrad, 203.25)
+
+local hubAutoPosBtn = Instance.new("TextButton")
+hubAutoPosBtn.Text = "Auto Position"
+hubAutoPosBtn.TextColor3 = Color3.fromRGB(100, 150, 255)
+hubAutoPosBtn.TextSize = 9
+hubAutoPosBtn.FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal)
+hubAutoPosBtn.Position = UDim2.new(0.5, -50, 0, 178)
+hubAutoPosBtn.Size = UDim2.new(0, 100, 0, 24)
+hubAutoPosBtn.BackgroundColor3 = Color3.fromRGB(20, 30, 50)
+hubAutoPosBtn.BorderSizePixel = 0
+hubAutoPosBtn.Parent = hubFrame
+
+local hubAutoPosCorner = Instance.new("UICorner")
+hubAutoPosCorner.CornerRadius = UDim.new(0, 6)
+hubAutoPosCorner.Parent = hubAutoPosBtn
+
+local hubAutoPosStroke = Instance.new("UIStroke")
+hubAutoPosStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+hubAutoPosStroke.Color = Color3.fromRGB(40, 80, 180)
+hubAutoPosStroke.Thickness = 1.2
+hubAutoPosStroke.Parent = hubAutoPosBtn
+
+local hubAutoPosGrad = Instance.new("UIGradient")
+hubAutoPosGrad.Color = makeBorderGradient()
+hubAutoPosGrad.Rotation = 203.25
+hubAutoPosGrad.Parent = hubAutoPosStroke
+animateGradient(hubAutoPosGrad, 203.25)
+
+local hubWatermark = Instance.new("TextLabel")
+hubWatermark.Text = "discord.gg/pecinhaFé"
+hubWatermark.TextColor3 = Color3.fromRGB(80, 110, 180)
+hubWatermark.TextTransparency = 0.4
+hubWatermark.TextSize = 9
+hubWatermark.FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Medium, Enum.FontStyle.Normal)
+hubWatermark.Position = UDim2.new(0, 6, 1, -16)
+hubWatermark.Size = UDim2.new(1, -12, 0, 14)
+hubWatermark.BackgroundTransparency = 1
+hubWatermark.Parent = hubFrame
+
+local flashEnabled = false
+local flashSliderValue = 0.93
+local manualOverride = false
+local triggerBump = false
+local activeTriggers = {}
+local ppsConn = nil
+local hbConn = nil
+local barFill = nil
+
+local Z_THRESHOLD = 60
+local AimLocations = {
+    Right = {
+        {pos=Vector3.new(-330.7,-4.1,94.5), aim=Vector3.new(-331.8,-5.0,91.1)},
+        {pos=Vector3.new(-322.7,-4.1,95.0), aim=Vector3.new(-324.8,-5.7,91.1)},
+        {pos=Vector3.new(-316.5,-4.1,93.9), aim=Vector3.new(-318.3,-4.9,91.1)},
+        {pos=Vector3.new(-308.1,-4.1,96.1), aim=Vector3.new(-311.5,-7.1,91.1)},
+        {pos=Vector3.new(-301.5,-4.1,94.6), aim=Vector3.new(-305.0,-6.0,91.1)},
+        {pos=Vector3.new(-329.3,13.8,97.0), aim=Vector3.new(-329.9,10.4,95.3)},
+        {pos=Vector3.new(-322.5,13.8,97.2), aim=Vector3.new(-323.0,10.4,95.3)},
+        {pos=Vector3.new(-315.1,13.8,97.3), aim=Vector3.new(-315.6,10.4,95.7)},
+        {pos=Vector3.new(-307.0,13.8,96.8), aim=Vector3.new(-307.7,10.4,95.2)},
+        {pos=Vector3.new(-299.4,13.8,96.5), aim=Vector3.new(-300.3,10.4,94.8)},
+        {pos=Vector3.new(-329.8,30.8,93.2), aim=Vector3.new(-329.8,35.1,91.1)},
+        {pos=Vector3.new(-323.5,30.8,93.2), aim=Vector3.new(-323.5,34.6,91.1)},
+        {pos=Vector3.new(-315.8,30.9,94.1), aim=Vector3.new(-315.8,35.2,91.1)},
+        {pos=Vector3.new(-304.9,30.8,95.8), aim=Vector3.new(-306.9,28.0,94.0)},
+        {pos=Vector3.new(-299.5,30.9,93.9), aim=Vector3.new(-303.4,26.9,92.0)},
+    },
+    Left = {
+        {pos=Vector3.new(-329.5,-4.2,24.2), aim=Vector3.new(-331.5,-6.9,29.1)},
+        {pos=Vector3.new(-324.2,-4.1,23.6), aim=Vector3.new(-327.6,-7.8,29.1)},
+        {pos=Vector3.new(-308.4,-4.1,24.4), aim=Vector3.new(-307.5,-0.0,20.3)},
+        {pos=Vector3.new(-308.1,-4.1,25.4), aim=Vector3.new(-309.7,-5.0,29.1)},
+        {pos=Vector3.new(-301.4,-4.1,25.8), aim=Vector3.new(-302.1,-5.2,29.1)},
+        {pos=Vector3.new(-317.4,13.9,25.3), aim=Vector3.new(-315.1,11.1,29.1)},
+        {pos=Vector3.new(-324.4,13.9,25.9), aim=Vector3.new(-324.4,18.0,29.1)},
+        {pos=Vector3.new(-318.7,13.7,24.3), aim=Vector3.new(-317.4,10.1,27.1)},
+        {pos=Vector3.new(-330.2,30.9,25.2), aim=Vector3.new(-330.1,35.2,29.1)},
+        {pos=Vector3.new(-321.9,30.9,23.7), aim=Vector3.new(-321.0,27.4,25.2)},
+    }
+}
+
+local function getPingBase()
+    local ping = 80
+    pcall(function() ping = LocalPlayer:GetNetworkPing() * 1000 end)
+    if ping <= 30 then return 0.91
+    elseif ping <= 70 then return 0.92
+    elseif ping <= 120 then return 0.93
+    else return 0.94 end
+end
+
+local function FindTool(key)
+    local bp = LocalPlayer:FindFirstChild("Backpack")
+    local ch = LocalPlayer.Character
+    if ch then for _,t in pairs(ch:GetChildren()) do
+        if t:IsA("Tool") and t.Name:lower():find(key:lower()) then return t end
+    end end
+    if bp then for _,t in pairs(bp:GetChildren()) do
+        if t:IsA("Tool") and t.Name:lower():find(key:lower()) then return t end
+    end end
+end
+
+local function PerformAlign(p, a)
+    local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid")
+    if not hrp or not hum then return end
+    local carpet = FindTool("flying")
+    if carpet then hum:EquipTool(carpet); task.wait(0.05) end
+    hrp.Velocity = Vector3.new(0,0,0)
+    hrp.CFrame = CFrame.new(p)
+    task.wait(0.1)
+    workspace.CurrentCamera.CFrame = CFrame.new(LocalPlayer.Character.Head.Position, a)
+end
+
+local function GetNearestPoint()
+    local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return nil end
+    local side = (hrp.Position.Z > Z_THRESHOLD) and AimLocations.Right or AimLocations.Left
+    local target, minDist = nil, math.huge
+    for _, pt in ipairs(side) do
+        local d = (hrp.Position - pt.pos).Magnitude
+        if d < minDist then minDist = d; target = pt end
+    end
+    return target
+end
+
+local function flashStart()
+    if ppsConn then ppsConn:Disconnect() end
+    ppsConn = ProximityPromptService.PromptButtonHoldBegan:Connect(function(prompt)
+        if not flashEnabled then return end
+        if activeTriggers[prompt] then return end
+        activeTriggers[prompt] = true
+        local start = os.clock()
+        local fired = false
+        local conn
+        conn = RunService.PreRender:Connect(function()
+            if not prompt or not prompt.Parent then
+                conn:Disconnect(); activeTriggers[prompt] = nil
+                if barFill then TweenService:Create(barFill, TweenInfo.new(0.3), {Size=UDim2.new(0,0,1,0)}):Play() end
+                return
+            end
+            local progress = math.clamp((os.clock()-start)/prompt.HoldDuration, 0, 1)
+            if barFill then barFill.Size = UDim2.new(progress,0,1,0) end
+            if not fired and progress >= flashSliderValue then
+                fired = true; conn:Disconnect(); activeTriggers[prompt] = nil
+                triggerBump = not triggerBump
+                local ch = LocalPlayer.Character
+                local tool = ch and ch:FindFirstChildOfClass("Tool")
+                if tool then tool:Activate() end
+                if barFill then
+                    barFill.Size = UDim2.new(1,0,1,0)
+                    task.delay(0.2, function()
+                        TweenService:Create(barFill, TweenInfo.new(0.4), {Size=UDim2.new(0,0,1,0)}):Play()
+                    end)
+                end
+            end
+        end)
+        prompt.PromptButtonHoldEnded:Connect(function()
+            if not fired then
+                conn:Disconnect(); activeTriggers[prompt] = nil
+                if barFill then TweenService:Create(barFill, TweenInfo.new(0.3), {Size=UDim2.new(0,0,1,0)}):Play() end
+            end
+        end)
+    end)
+
+    if hbConn then hbConn:Disconnect() end
+    hbConn = RunService.Heartbeat:Connect(function()
+        if not manualOverride then
+            local base = getPingBase()
+            flashSliderValue = triggerBump and base+0.01 or base
+        end
+    end)
+end
+
+local function flashStop()
+    if ppsConn then ppsConn:Disconnect(); ppsConn = nil end
+    if hbConn then hbConn:Disconnect(); hbConn = nil end
+    activeTriggers = {}
+    if barFill then TweenService:Create(barFill, TweenInfo.new(0.3), {Size=UDim2.new(0,0,1,0)}):Play() end
+end
+
+local barGui = Instance.new("ScreenGui")
+barGui.Name = "FlashTPBar"
+barGui.ResetOnSpawn = false
+barGui.DisplayOrder = 997
+barGui.Parent = PlayerGui
+
+local bg = Instance.new("Frame")
+bg.Size = UDim2.new(0,220,0,16)
+bg.Position = UDim2.new(0.5,-110,1,-28)
+bg.BackgroundColor3 = Color3.fromRGB(0,0,0)
+bg.BackgroundTransparency = 0
+bg.BorderSizePixel = 0
+bg.Parent = barGui
+
+local bgCorner = Instance.new("UICorner")
+bgCorner.CornerRadius = UDim.new(0, 6)
+bgCorner.Parent = bg
+
+local bgStroke = Instance.new("UIStroke")
+bgStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+bgStroke.Color = Color3.fromRGB(40, 80, 180)
+bgStroke.Thickness = 1.5
+bgStroke.Parent = bg
+
+local inner = Instance.new("Frame")
+inner.Size = UDim2.new(1,-8,1,-6)
+inner.Position = UDim2.new(0,4,0,3)
+inner.BackgroundColor3 = Color3.fromRGB(15,15,15)
+inner.BorderSizePixel = 0
+inner.Parent = bg
+
+local innerCorner = Instance.new("UICorner")
+innerCorner.CornerRadius = UDim.new(0, 8)
+innerCorner.Parent = inner
+
+barFill = Instance.new("Frame")
+barFill.Name = "Fill"
+barFill.Size = UDim2.new(0,0,1,0)
+barFill.BackgroundColor3 = Color3.fromRGB(100, 150, 255)
+barFill.BorderSizePixel = 0
+barFill.Parent = inner
+
+local barFillCorner = Instance.new("UICorner")
+barFillCorner.CornerRadius = UDim.new(0, 8)
+barFillCorner.Parent = barFill
+
+local speedEnabled = false
+local speedValue = 27
+local speedConnection = nil
+local character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
+local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
+
+local function applyVelocity()
+    if not speedEnabled or not character or not humanoid or not humanoidRootPart then return end
+    local moveDirection = humanoid.MoveDirection
+    if moveDirection.Magnitude > 0 then
+        local newVelocity = moveDirection * speedValue
+        newVelocity = Vector3.new(newVelocity.X, humanoidRootPart.Velocity.Y, newVelocity.Z)
+        humanoidRootPart.Velocity = newVelocity
+    end
+end
+
+local function setSpeedEnabled(state)
+    speedEnabled = state
+    if speedEnabled then
+        if not speedConnection then
+            speedConnection = RunService.Heartbeat:Connect(applyVelocity)
+        end
+    else
+        if speedConnection then
+            speedConnection:Disconnect()
+            speedConnection = nil
+        end
+    end
+end
+
+LocalPlayer.CharacterAdded:Connect(function(newChar)
+    character = newChar
+    humanoid = character:WaitForChild("Humanoid")
+    humanoidRootPart = character:WaitForChild("HumanoidRootPart")
+    if speedEnabled then
+        if speedConnection then speedConnection:Disconnect() end
+        speedConnection = RunService.Heartbeat:Connect(applyVelocity)
+    end
+end)
+
+local hubFlashState = false
+hubFlashBtn.MouseButton1Click:Connect(function()
+    hubFlashState = not hubFlashState
+    flashEnabled = hubFlashState
+    hubFlashLabel.Text = hubFlashState and "Flash TP: ON" or "Flash TP: OFF"
+    animateToggle(hubFlashKnob, hubFlashToggleFrame, hubFlashState)
+    if hubFlashState then
+        flashStart()
+    else
+        flashStop()
+    end
+end)
+
+local hubSliderDragging = false
+local hubSliderValue = 0.93
+
+local function updateHubSlider(val)
+    val = math.clamp(val, 0, 1)
+    hubSliderValue = val
+    flashSliderValue = val
+    manualOverride = true
+    hubSliderFill.Size = UDim2.new(val, 0, 1, 0)
+    hubSliderHandle.Position = UDim2.new(val, 0, 0.5, 0)
+    hubTriggerPct.Text = math.floor(val * 100) .. "%"
+end
+
+hubSliderTrack.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        hubSliderDragging = true
+        local relX = (input.Position.X - hubSliderTrack.AbsolutePosition.X) / hubSliderTrack.AbsoluteSize.X
+        updateHubSlider(relX)
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if hubSliderDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local relX = (input.Position.X - hubSliderTrack.AbsolutePosition.X) / hubSliderTrack.AbsoluteSize.X
+        updateHubSlider(relX)
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        hubSliderDragging = false
+    end
+end)
+
+local hubSpeedState = false
+hubSpeedBtn.MouseButton1Click:Connect(function()
+    hubSpeedState = not hubSpeedState
+    hubSpeedLabel.Text = hubSpeedState and "Speed Boost: ON" or "Speed Boost: OFF"
+    animateToggle(hubSpeedKnob, hubSpeedToggleFrame, hubSpeedState)
+    setSpeedEnabled(hubSpeedState)
+end)
+
+hubSpeedBox.FocusLost:Connect(function(enterPressed)
+    if enterPressed then
+        local num = tonumber(hubSpeedBox.Text)
+        if num and num > 0 then
+            speedValue = num
+        else
+            hubSpeedBox.Text = tostring(speedValue)
+        end
+    end
+end)
+
+hubAutoPosBtn.MouseButton1Click:Connect(function()
+    animateButtonPress(hubAutoPosBtn)
+    local pt = GetNearestPoint()
+    if pt then PerformAlign(pt.pos, pt.aim) end
+end)
+
+makeDraggable(hubFrame, hubTitle)
+makeMinimizable(hubFrame, hubMinBtn, 250, 32)
+
+local helperGui = Instance.new("ScreenGui")
+helperGui.Name = "PecinhaFéhelper"
+helperGui.ResetOnSpawn = false
+helperGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+helperGui.Parent = PlayerGui
+
+local helperFrame = Instance.new("Frame")
+helperFrame.Position = UDim2.new(0, 10, 0.5, -50)
+helperFrame.Size = UDim2.new(0, 145, 0, 100)
+helperFrame.BackgroundColor3 = Color3.fromRGB(10, 15, 30)
+helperFrame.BackgroundTransparency = 0.3
+helperFrame.BorderSizePixel = 0
+helperFrame.Name = "Frame"
+helperFrame.Parent = helperGui
+
+local helperCorner = Instance.new("UICorner")
+helperCorner.CornerRadius = UDim.new(0, 10)
+helperCorner.Parent = helperFrame
+
+local helperStroke = Instance.new("UIStroke")
+helperStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+helperStroke.Color = Color3.fromRGB(40, 80, 180)
+helperStroke.Thickness = 2
+helperStroke.Parent = helperFrame
+
+local helperStrokeGrad = Instance.new("UIGradient")
+helperStrokeGrad.Color = makeBorderGradient()
+helperStrokeGrad.Rotation = 230.75
+helperStrokeGrad.Parent = helperStroke
+animateGradient(helperStrokeGrad, 230.75)
+
+local helperTitle = Instance.new("TextLabel")
+helperTitle.Text = "HELPER"
+helperTitle.TextColor3 = Color3.fromRGB(100, 150, 255)
+helperTitle.TextSize = 11
+helperTitle.FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Heavy, Enum.FontStyle.Normal)
+helperTitle.TextXAlignment = Enum.TextXAlignment.Center
+helperTitle.Position = UDim2.new(0, 5, 0, 4)
+helperTitle.Size = UDim2.new(1, -10, 0, 18)
+helperTitle.BackgroundTransparency = 1
+helperTitle.Parent = helperFrame
+
+local function makeHelperButton(parent, yPos, labelText)
+    local btn = Instance.new("TextButton")
+    btn.Text = labelText
+    btn.TextColor3 = Color3.fromRGB(150, 180, 255)
+    btn.TextSize = 10
+    btn.FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Heavy, Enum.FontStyle.Normal)
+    btn.Position = UDim2.new(0.5, -62, 0, yPos)
+    btn.Size = UDim2.new(0, 125, 0, 20)
+    btn.BackgroundColor3 = Color3.fromRGB(20, 30, 50)
+    btn.BorderSizePixel = 0
+    btn.Parent = parent
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 6)
+    corner.Parent = btn
+
+    local stroke = Instance.new("UIStroke")
+    stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    stroke.Color = Color3.fromRGB(40, 80, 180)
+    stroke.Thickness = 1.5
+    stroke.Parent = btn
+
+    local grad = Instance.new("UIGradient")
+    grad.Color = makeBorderGradient()
+    grad.Rotation = 230.75
+    grad.Parent = stroke
+    animateGradient(grad, 230.75)
+
+    btn.MouseButton1Click:Connect(function()
+        animateButtonPress(btn)
+    end)
+
+    return btn
+end
+
+local rejoinBtn = makeHelperButton(helperFrame, 24, "REJOIN")
+local resetBtn = makeHelperButton(helperFrame, 48, "INSTANT RESET")
+local kickSelfBtn = makeHelperButton(helperFrame, 72, "KICK SELF")
+
+rejoinBtn.MouseButton1Click:Connect(function()
+    local teleportService = game:GetService("TeleportService")
+    teleportService:Teleport(game.PlaceId, LocalPlayer)
+end)
+
+resetBtn.MouseButton1Click:Connect(function()
+    cursedInstaReset()
+end)
+
+kickSelfBtn.MouseButton1Click:Connect(function()
+    LocalPlayer:Kick("Kicked self via PecinhaFé Helper")
+end)
+
+makeDraggable(helperFrame, helperTitle)
+
+local statsGui = Instance.new("ScreenGui")
+statsGui.Name = "PecinhaFéstats"
+statsGui.ResetOnSpawn = false
+statsGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+statsGui.Parent = PlayerGui
+
+local statsFrame = Instance.new("Frame")
+statsFrame.Position = UDim2.new(0.5, -105, 1, -120)
+statsFrame.Size = UDim2.new(0, 210, 0, 40)
+statsFrame.BackgroundColor3 = Color3.fromRGB(10, 15, 30)
+statsFrame.BackgroundTransparency = 0.3
+statsFrame.BorderSizePixel = 0
+statsFrame.Name = "Frame"
+statsFrame.Parent = statsGui
+
+Instance.new("UICorner").Parent = statsFrame
+
+local statsStroke = Instance.new("UIStroke")
+statsStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+statsStroke.Color = Color3.fromRGB(40, 80, 180)
+statsStroke.Thickness = 1.5
+statsStroke.Parent = statsFrame
+
+local statsStrokeGrad = Instance.new("UIGradient")
+statsStrokeGrad.Color = makeBorderGradient()
+statsStrokeGrad.Rotation = 223.25
+statsStrokeGrad.Parent = statsStroke
+animateGradient(statsStrokeGrad, 223.25)
+
+local statsDiscord = Instance.new("TextLabel")
+statsDiscord.Text = "discord.gg/PecinhaFé"
+statsDiscord.TextColor3 = Color3.fromRGB(100, 150, 255)
+statsDiscord.TextSize = 12
+statsDiscord.FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Heavy, Enum.FontStyle.Normal)
+statsDiscord.Position = UDim2.new(0, 8, 0, 3)
+statsDiscord.Size = UDim2.new(1, -16, 0.55, 0)
+statsDiscord.BackgroundTransparency = 1
+statsDiscord.Parent = statsFrame
+
+local statsDiscordGrad = Instance.new("UIGradient")
+statsDiscordGrad.Color = makeTitleGradient()
+statsDiscordGrad.Offset = Vector2.new(0.356, 0)
+statsDiscordGrad.Parent = statsDiscord
+animateTitleGradient(statsDiscordGrad)
+
+local statsFpsLabel = Instance.new("TextLabel")
+statsFpsLabel.Text = "FPS: 60 | PING: 42 ms"
+statsFpsLabel.TextColor3 = Color3.fromRGB(150, 180, 255)
+statsFpsLabel.TextSize = 10
+statsFpsLabel.FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+statsFpsLabel.Position = UDim2.new(0, 8, 0.6, 0)
+statsFpsLabel.Size = UDim2.new(1, -16, 0, 13)
+statsFpsLabel.BackgroundTransparency = 1
+statsFpsLabel.Parent = statsFrame
+
+local fpsSamples = {}
+local fpsUpdateConn = RunService.Heartbeat:Connect(function(dt)
+    table.insert(fpsSamples, 1 / dt)
+    if #fpsSamples > 20 then table.remove(fpsSamples, 1) end
+    local sum = 0
+    for _, v in ipairs(fpsSamples) do sum = sum + v end
+    local fps = math.floor(sum / #fpsSamples)
+    local ping = math.floor(Stats.Network.ServerStatsItem["Data Ping"]:GetValue())
+    statsFpsLabel.Text = "FPS: " .. fps .. " | PING: " .. ping .. " ms"
+end)
+
+makeDraggable(statsFrame)
